@@ -7,6 +7,11 @@ from sklearn.metrics import log_loss
 from sklearn.linear_model import LogisticRegression
 from sklearn.ensemble import RandomForestClassifier
 
+from random import shuffle
+from gensim.models.word2vec import Word2Vec
+
+# https://blog.myyellowroad.com/using-categorical-data-in-machine-learning-with-python-from-dummy-variables-to-deep-category-42fd0a43b009
+
 
 def main():
 
@@ -89,6 +94,58 @@ def main():
 
     r.fit(X_train_ctr, y_train)
     y_pred = r.predict_proba(X_test_ctr)
+    print('{:.2f}'.format(log_loss(y_test, y_pred)))
+
+    # method 6 - cat2vec
+    size = 6
+    window = 8
+
+    x_w2v = copy.deepcopy(train.iloc[:, features])
+    names = list(x_w2v.columns.values)
+
+    for i in names:
+        x_w2v[i] = x_w2v[i].astype('category')
+        x_w2v[i].cat.categories = ['Feature %s %s' % (i, g) for g in x_w2v[i].cat.categories]
+
+    x_w2v = x_w2v.values.tolist()
+    for i in x_w2v:
+        shuffle(i)
+
+    w2v = Word2Vec(x_w2v, size=size, window=window)
+
+    X_train_w2v = copy.copy(X_train)
+    X_test_w2v = copy.copy(X_test)
+
+    for i in names:
+        X_train_w2v[i] = X_train_w2v[i].astype('category')
+        X_train_w2v[i].cat.categories = ['Feature %s %s' % (i, g) for g in X_train_w2v[i].cat.categories]
+
+    for i in names:
+        X_test_w2v[i] = X_test_w2v[i].astype('category')
+        X_test_w2v[i].cat.categories = ['Feature %s %s' % (i, g) for g in X_test_w2v[i].cat.categories]
+
+    X_train_w2v = X_train_w2v.values
+    X_test_w2v = X_test_w2v.values
+
+    x_w2v_train = np.random.random((len(X_train_w2v), size * X_train_w2v.shape[1]))
+    x_w2v_test = np.random.random((len(X_test_w2v), size * X_test_w2v.shape[1]))
+
+    for j in range(X_train_w2v.shape[1]):
+        for i in range(X_train_w2v.shape[0]):
+            if X_train_w2v[i, j] in w2v:
+                x_w2v_train[i, j * size:(j + 1) * size] = w2v[X_train_w2v[i, j]]
+
+    for j in range(X_test_w2v.shape[1]):
+        for i in range(X_test_w2v.shape[0]):
+            if X_test_w2v[i, j] in w2v:
+                x_w2v_test[i, j * size:(j + 1) * size] = w2v[X_test_w2v[i, j]]
+
+    l.fit(x_w2v_train, y_train)
+    y_pred = l.predict_proba(x_w2v_test)
+    print('{:.2f}'.format(log_loss(y_test, y_pred)))
+
+    r.fit(x_w2v_train, y_train)
+    y_pred = r.predict_proba(x_w2v_test)
     print('{:.2f}'.format(log_loss(y_test, y_pred)))
 
 
